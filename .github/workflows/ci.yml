@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install runtime and check tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install ruff==0.17.3 pip-audit==2.10.1
+      - name: Validate Python syntax
+        run: >-
+          python -m compileall -q Admins AI Handlers Reader Search Services
+          Storage Tests Utils app_context.py config.py main.py state.py
+      - name: Lint
+        run: ruff check --select E4,E7,E9,F --ignore E402,F401,F841 .
+      - name: Run tests
+        run: python -m unittest discover -s Tests -p "test_*.py" -v
+      - name: Check dependency consistency
+        run: python -m pip check
+      - name: Audit dependencies
+        run: python -m pip_audit -r requirements.txt
+
+  secrets:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan repository history for secrets
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
